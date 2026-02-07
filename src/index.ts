@@ -132,15 +132,6 @@ app.use('*', async (c, next) => {
   await next();
 });
 
-app.post('/v1/chat/completions', async (c) => {
-  // Forward to container's internal Moltbot gateway
-  const response = await fetch('http://localhost:18789/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(await c.req.json())
-  });
-  return new Response(response.body);
-});
 
 // Middleware: Initialize sandbox for all requests
 app.use('*', async (c, next) => {
@@ -440,6 +431,19 @@ app.all('*', async (c) => {
 
   console.log('[HTTP] Proxying:', url.pathname + url.search);
   const httpResponse = await sandbox.containerFetch(request, MOLTBOT_PORT);
+  
+  
+ app.post('/v1/chat/completions', async (c) => {
+  // Forward to container's internal Moltbot gateway
+  const response = await fetch('http://localhost:18789/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(await c.req.json())
+  });
+  return new Response(response.body);
+}); 
+  
+  
   console.log('[HTTP] Response status:', httpResponse.status);
 
   // Add debug header to verify worker handled the request
