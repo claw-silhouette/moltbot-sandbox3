@@ -162,7 +162,7 @@ app.options("/v1/chat/completions", async (c) => {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers":
-      "Content-Type, Authorization, x-moltbot-agent-id",
+      "Content-Type, Authorization, x-moltbot-agent-id, x-openclaw-agent-id",
   });
 });
 
@@ -173,11 +173,25 @@ app.post("/v1/chat/completions", async (c) => {
 
   let proxiedRequest = request;
 
-  // Inject gateway token if present and missing from query
-  if (c.env.MOLTBOT_GATEWAY_TOKEN && !url.searchParams.has("token")) {
-    const tokenUrl = new URL(url.toString());
-    tokenUrl.searchParams.set("token", c.env.MOLTBOT_GATEWAY_TOKEN);
-    proxiedRequest = new Request(tokenUrl.toString(), request);
+  // Inject gateway token: OpenClaw expects Authorization: Bearer <token> for this endpoint
+  if (c.env.MOLTBOT_GATEWAY_TOKEN) {
+    const headers = new Headers(request.headers);
+    if (!headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${c.env.MOLTBOT_GATEWAY_TOKEN}`);
+    }
+    const targetUrl = !url.searchParams.has("token")
+      ? (() => {
+          const u = new URL(url.toString());
+          u.searchParams.set("token", c.env.MOLTBOT_GATEWAY_TOKEN!);
+          return u.toString();
+        })()
+      : request.url;
+    proxiedRequest = new Request(targetUrl, {
+      method: request.method,
+      headers,
+      body: request.body,
+      duplex: "half",
+    });
   }
 
   try {
@@ -210,7 +224,7 @@ app.post("/v1/chat/completions", async (c) => {
   headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
   headers.set(
     "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, x-moltbot-agent-id",
+    "Content-Type, Authorization, x-moltbot-agent-id, x-openclaw-agent-id",
   );
   headers.set("X-Worker-Debug", "v1-chat-completions");
 

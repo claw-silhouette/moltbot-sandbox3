@@ -96,6 +96,31 @@ Replace `your-worker` with your actual worker subdomain and `YOUR_GATEWAY_TOKEN`
 
 You'll also likely want to [enable R2 storage](#persistent-storage-r2) so your paired devices and conversation history persist across container restarts (optional but recommended).
 
+## Sending messages to the agent (HTTP API)
+
+To send messages to the agent from scripts, other services, or API clients, use the **OpenAI-compatible** endpoint:
+
+**`POST https://your-worker.workers.dev/v1/chat/completions`**
+
+- **Authentication:** If you set `MOLTBOT_GATEWAY_TOKEN`, the worker injects it for you. You can also send it explicitly: `Authorization: Bearer YOUR_GATEWAY_TOKEN`.
+- **Body (JSON):** Same as OpenAI Chat Completions, e.g.:
+  - `model`: use `"openclaw"` or `"openclaw:main"` (default agent), or `"openclaw:<agentId>"` for another agent.
+  - `messages`: array of `{ "role": "user"|"assistant"|"system", "content": "..." }`.
+- **Optional header:** `x-openclaw-agent-id: main` (or another agent id) to choose which agent handles the request.
+
+**Example (curl):**
+
+```bash
+curl -sS "https://YOUR-WORKER.workers.dev/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_GATEWAY_TOKEN" \
+  -d '{"model":"openclaw","messages":[{"role":"user","content":"Hello, what can you do?"}]}'
+```
+
+**Streaming:** Add `"stream": true` to the JSON body to receive Server-Sent Events (SSE).
+
+This route is **not** behind Cloudflare Access; anyone who has your gateway token can call it. Keep `MOLTBOT_GATEWAY_TOKEN` secret.
+
 ## Setting Up the Admin UI
 
 To use the admin UI at `/_admin/` for device management, you need to:
