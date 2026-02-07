@@ -153,6 +153,75 @@ app.use("*", async (c, next) => {
 });
 
 // =============================================================================
+// OPENAI-COMPAT ROUTE: mount BEFORE publicRoutes to avoid 405 collisions
+// Public by default (no CF Access middleware yet)
+// =============================================================================
+
+app.options("/v1/chat/completions", async (c) => {
+  return c.body(null, 204, {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, x-moltbot-agent-id",
+  });
+});
+
+app.post("/v1/chat/completions", async (c) => {
+  const sandbox = c.get("sandbox");
+  const request = c.req.raw;
+  const url = new URL(request.url);
+
+  let proxiedRequest = request;
+
+  // Inject gateway token if present and missing from query
+  if (c.env.MOLTBOT_GATEWAY_TOKEN && !url.searchParams.has("token")) {
+    const tokenUrl = new URL(url.toString());
+    tokenUrl.searchParams.set("token", c.env.MOLTBOT_GATEWAY_TOKEN);
+    proxiedRequest = new Request(tokenUrl.toString(), request);
+  }
+
+  try {
+    await ensureMoltbotGateway(sandbox, c.env);
+  } catch (error) {
+    console.error("[v1/chat/completions] Failed to start Moltbot:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+    let hint = "Check worker logs with: wrangler tail";
+    if (!c.env.ANTHROPIC_API_KEY) {
+      hint = "ANTHROPIC_API_KEY is not set. Run: wrangler secret put ANTHROPIC_API_KEY";
+    } else if (errorMessage.includes("heap out of memory") || errorMessage.includes("OOM")) {
+      hint = "Gateway ran out of memory. Try again or check for memory leaks.";
+    }
+
+    return c.json(
+      {
+        error: "Moltbot gateway failed to start",
+        details: errorMessage,
+        hint,
+      },
+      503,
+    );
+  }
+
+  const resp = await sandbox.containerFetch(proxiedRequest, MOLTBOT_PORT);
+
+  const headers = new Headers(resp.headers);
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  headers.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, x-moltbot-agent-id",
+  );
+  headers.set("X-Worker-Debug", "v1-chat-completions");
+
+  return new Response(resp.body, {
+    status: resp.status,
+    statusText: resp.statusText,
+    headers,
+  });
+});
+
+// =============================================================================
 // PUBLIC ROUTES: No Cloudflare Access authentication required
 // =============================================================================
 
@@ -217,39 +286,6 @@ app.use("*", async (c, next) => {
   });
 
   return middleware(c, next);
-});
-
-// =============================================================================
-// SPECIAL ROUTE: OpenAI-compatible endpoint forwarded into the container
-// (mounted BEFORE catch-all proxy so it can have distinct behavior if desired)
-// =============================================================================
-
-app.post("/v1/chat/completions", async (c) => {
-  const sandbox = c.get("sandbox");
-  const request = c.req.raw;
-
-  const url = new URL(request.url);
-
-  // Inject gateway token if present and missing from query (mirrors WS handling pattern)
-  let proxiedRequest = request;
-  if (c.env.MOLTBOT_GATEWAY_TOKEN && !url.searchParams.has("token")) {
-    const tokenUrl = new URL(url.toString());
-    tokenUrl.searchParams.set("token", c.env.MOLTBOT_GATEWAY_TOKEN);
-    proxiedRequest = new Request(tokenUrl.toString(), request);
-  }
-
-  // Ensure gateway is running
-  await ensureMoltbotGateway(sandbox, c.env);
-
-  // Forward request into the sandbox container
-  const resp = await sandbox.containerFetch(proxiedRequest, MOLTBOT_PORT);
-
-  // Preserve status + headers + body
-  return new Response(resp.body, {
-    status: resp.status,
-    statusText: resp.statusText,
-    headers: resp.headers,
-  });
 });
 
 // Mount API routes (protected by Cloudflare Access)
@@ -351,7 +387,7 @@ app.all("*", async (c) => {
 
     // Get WebSocket connection to the container
     const containerResponse = await sandbox.wsConnect(wsRequest, MOLTBOT_PORT);
-    console.log("[WS] wsConnect response status:", containerResponse.status);
+    console.log("[WS] wsConnect response status:", containerResponse.status;
 
     // Get the container-side WebSocket
     const containerWs = containerResponse.webSocket;
