@@ -132,6 +132,16 @@ app.use('*', async (c, next) => {
   await next();
 });
 
+app.post('/v1/chat/completions', async (c) => {
+  // Forward to container's internal Moltbot gateway
+  const response = await fetch('http://localhost:18789/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(await c.req.json())
+  });
+  return new Response(response.body);
+});
+
 // Middleware: Initialize sandbox for all requests
 app.use('*', async (c, next) => {
   const options = buildSandboxOptions(c.env);
