@@ -119,7 +119,20 @@ curl -sS "https://YOUR-WORKER.workers.dev/v1/chat/completions" \
 
 **Streaming:** Add `"stream": true` to the JSON body to receive Server-Sent Events (SSE).
 
-This route is **not** behind Cloudflare Access; anyone who has your gateway token can call it. Keep `MOLTBOT_GATEWAY_TOKEN` secret.
+This route is **not** behind Cloudflare Access in the worker code; access is controlled only by your gateway token. If you have [Cloudflare Access](#allowing-the-api-path-in-zero-trust) enabled on the worker, you must add a **Bypass** rule for `/v1/*` so API requests (e.g. curl) are not redirected to the login page. Keep `MOLTBOT_GATEWAY_TOKEN` secret.
+
+## Allowing the API path in Zero Trust
+
+If you enabled Cloudflare Access on your worker, Access runs **before** the worker and can redirect API requests to the login page. That can cause `Method Not Allowed` (405) when curl follows the redirect as GET. Add a **Bypass** policy so `/v1/*` is not protected by Access:
+
+1. Open [Zero Trust](https://one.dash.cloudflare.com/) → **Access** → **Applications**.
+2. Open the application for your worker (e.g. `moltbot-sandbox3.tight-dawn-4128.workers.dev`).
+3. Under **Application configuration**, find **Policies** (or **Access policies**).
+4. Add a **Bypass** policy and move it **above** any “Require authentication” type policy:
+   - **Policy name:** e.g. `Bypass API`
+   - **Action:** Bypass
+   - **Configure:** Add an **Include** rule: **Path** → equals `/v1/chat/completions` or starts with `/v1/`.
+5. Save. Requests to `https://your-worker.workers.dev/v1/chat/completions` will skip Access and reach the worker; the worker still requires `Authorization: Bearer YOUR_GATEWAY_TOKEN`.
 
 ## Setting Up the Admin UI
 
