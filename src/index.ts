@@ -162,7 +162,7 @@ app.options("/v1/chat/completions", async (c) => {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers":
-      "Content-Type, Authorization, x-moltbot-agent-id, x-openclaw-agent-id",
+      "Content-Type, Authorization, CF-Access-Client-Id, CF-Access-Client-Secret, x-moltbot-agent-id, x-openclaw-agent-id, x-openclaw-session-key",
   });
 });
 
@@ -224,7 +224,7 @@ app.post("/v1/chat/completions", async (c) => {
   headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
   headers.set(
     "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, x-moltbot-agent-id, x-openclaw-agent-id",
+    "Content-Type, Authorization, CF-Access-Client-Id, CF-Access-Client-Secret, x-moltbot-agent-id, x-openclaw-agent-id, x-openclaw-session-key",
   );
   headers.set("X-Worker-Debug", "v1-chat-completions");
 
