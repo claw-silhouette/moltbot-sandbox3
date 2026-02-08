@@ -286,6 +286,18 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
     };
 }
 
+// Browser profile for Cloudflare Browser Rendering (CDP) - so the agent sees "browser available"
+if (process.env.WORKER_URL) {
+    config.browser = config.browser || {};
+    config.browser.profiles = config.browser.profiles || {};
+    const base = process.env.WORKER_URL.replace(/^https?:\/\//, '');
+    const cdpUrl = process.env.CDP_SECRET
+        ? 'wss://' + base + '/cdp?secret=' + encodeURIComponent(process.env.CDP_SECRET)
+        : 'wss://' + base + '/cdp';
+    config.browser.profiles.cloudflare = { cdpUrl };
+    console.log('Browser profile cloudflare set (agent can use browser via CDP)');
+}
+
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 console.log('Configuration patched successfully');
 EOFPATCH

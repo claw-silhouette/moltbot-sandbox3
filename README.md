@@ -376,6 +376,8 @@ npx wrangler secret put CDP_SECRET
 npm run deploy
 ```
 
+When `WORKER_URL` is set, the startup script registers a **cloudflare** browser profile in OpenClaw config (`browser.profiles.cloudflare.cdpUrl`). That makes the agent see a browser as available (via Cloudflare Browser Rendering). If the agent says "I don't have a browser installed", ensure `WORKER_URL` is set and redeploy so the new config is applied.
+
 ### Endpoints
 
 | Endpoint | Description |
