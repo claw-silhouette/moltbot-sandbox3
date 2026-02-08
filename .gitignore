@@ -53,6 +53,9 @@ Thumbs.db
 .terraform.lock.hcl
 terraform.tfvars
 
+# Local chat (contains API keys; keep local only)
+local-chat.html
+
 # E2E test credentials
 test/e2e/.dev.vars
 

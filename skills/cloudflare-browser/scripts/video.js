@@ -18,8 +18,13 @@ if (!CDP_SECRET) {
   process.exit(1);
 }
 
-const WORKER_URL = process.env.WORKER_URL.replace(/^https?:\/\//, '');
-const WS_URL = `wss://${WORKER_URL}/cdp?secret=${encodeURIComponent(CDP_SECRET)}`;
+const WORKER_URL = process.env.WORKER_URL;
+if (!WORKER_URL) {
+  console.error('Error: WORKER_URL environment variable not set');
+  process.exit(1);
+}
+const WS_BASE = WORKER_URL.replace(/^https?:\/\//, '');
+const WS_URL = `wss://${WS_BASE}/cdp?secret=${encodeURIComponent(CDP_SECRET)}`;
 
 // Parse args
 const args = process.argv.slice(2);

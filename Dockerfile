@@ -10,7 +10,7 @@ RUN ARCH="$(dpkg --print-architecture)" \
          arm64) NODE_ARCH="arm64" ;; \
          *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
        esac \
-    && apt-get update && apt-get install -y xz-utils ca-certificates rsync \
+    && apt-get update && apt-get install -y xz-utils ca-certificates rsync ffmpeg \
     && curl -fsSLk https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz -o /tmp/node.tar.xz \
     && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
     && rm /tmp/node.tar.xz \
@@ -25,6 +25,13 @@ RUN npm install -g pnpm
 RUN npm install -g openclaw@2026.2.3 \
     && openclaw --version
 
+# Install Playwright with Chromium (for browser automation inside the container)
+RUN npm install -g playwright \
+    && playwright install --with-deps chromium
+
+# Install Selenium WebDriver (ChromeDriver is fetched by Selenium Manager on first use)
+RUN npm install -g selenium-webdriver
+
 # Create OpenClaw directories
 # Legacy .clawdbot paths are kept for R2 backup migration
 RUN mkdir -p /root/.openclaw \
@@ -32,15 +39,17 @@ RUN mkdir -p /root/.openclaw \
     && mkdir -p /root/clawd/skills
 
 # Copy startup script
-# Build cache bust: 2026-02-06-v29-sync-workspace
+# Build cache bust: 2026-02-08-v32-ffmpeg-ws
 COPY start-openclaw.sh /usr/local/bin/start-openclaw.sh
 RUN chmod +x /usr/local/bin/start-openclaw.sh
 
 # Copy custom skills
 COPY skills/ /root/clawd/skills/
 
-# Set working directory
+# Set working directory and install script deps (ws for cloudflare-browser scripts)
 WORKDIR /root/clawd
+RUN echo '{"name":"clawd","private":true,"dependencies":{"ws":"^8.18.0"}}' > package.json \
+    && npm install --omit=dev
 
 # Expose the gateway port
 EXPOSE 18789
