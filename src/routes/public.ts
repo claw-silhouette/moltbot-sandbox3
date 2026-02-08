@@ -57,6 +57,41 @@ publicRoutes.get('/api/status', async (c) => {
   }
 });
 
+// GET /api/worker/status - Combined worker status (gateway, sandbox, no auth)
+publicRoutes.get('/api/worker/status', async (c) => {
+  const sandbox = c.get('sandbox');
+  const env = c.env;
+
+  const result: {
+    sandbox: 'ok';
+    gateway: 'running' | 'not_running' | 'not_responding' | 'error';
+    processId?: string;
+    error?: string;
+  } = {
+    sandbox: 'ok',
+    gateway: 'not_running',
+  };
+
+  try {
+    const process = await findExistingMoltbotProcess(sandbox);
+    if (!process) {
+      return c.json(result);
+    }
+    result.processId = process.id;
+    try {
+      await process.waitForPort(18789, { mode: 'tcp', timeout: 5000 });
+      result.gateway = 'running';
+    } catch {
+      result.gateway = 'not_responding';
+    }
+  } catch (err) {
+    result.gateway = 'error';
+    result.error = err instanceof Error ? err.message : 'Unknown error';
+  }
+
+  return c.json(result);
+});
+
 // GET /_admin/assets/* - Admin UI static assets (CSS, JS need to load for login redirect)
 // Assets are built to dist/client with base "/_admin/"
 publicRoutes.get('/_admin/assets/*', async (c) => {

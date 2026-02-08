@@ -121,6 +121,30 @@ curl -sS "https://YOUR-WORKER.workers.dev/v1/chat/completions" \
 
 This route is **not** behind Cloudflare Access in the worker code; access is controlled only by your gateway token. If you have [Cloudflare Access](#allowing-the-api-path-in-zero-trust) enabled on the worker, you must add a **Bypass** rule for `/v1/*` so API requests (e.g. curl) are not redirected to the login page. Keep `MOLTBOT_GATEWAY_TOKEN` secret.
 
+## Worker status endpoints
+
+Public endpoints (no auth) to check worker and gateway state:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /sandbox-health` | Simple liveness: `{ "status": "ok", "service": "moltbot-sandbox", "gateway_port": 18789 }` |
+| `GET /api/status` | Gateway only: `{ "ok": true/false, "status": "running" \| "not_running" \| "not_responding" \| "error", "processId"?, "error"? }` |
+| `GET /api/worker/status` | Combined: `{ "sandbox": "ok", "gateway": "running" \| "not_running" \| "not_responding" \| "error", "processId"?, "error"? }` |
+
+Example:
+```bash
+curl -sS "https://YOUR-WORKER.workers.dev/api/worker/status"
+```
+
+## Posts / promotions “blocker”
+
+If the agent refuses to write posts or promotional content, that is **not** controlled by this worker. It comes from either:
+
+1. **The AI provider (Anthropic, OpenAI, etc.)** – Model usage policies often restrict certain marketing or promotional outputs. You cannot turn that off from the worker.
+2. **OpenClaw / agent config** – The agent’s system prompt or instructions (e.g. in OpenClaw config under the agent or in workspace files like `IDENTITY.md`, `USER.md`, or agent-specific instructions) may tell it to avoid promotions. To allow posts/promotions, edit those instructions in the OpenClaw config or workspace that the agent uses (e.g. in the container at `/root/clawd/` or in R2-backed config), or adjust the agent’s system prompt in OpenClaw so it’s allowed to write that kind of content.
+
+The worker only proxies requests to the gateway; it does not add content policies.
+
 ## Allowing the API path in Zero Trust
 
 If you enabled Cloudflare Access on your worker, Access runs **before** the worker and can redirect API requests to the login page. That can cause `Method Not Allowed` (405) when curl follows the redirect as GET. Add a **Bypass** policy so `/v1/*` is not protected by Access:
