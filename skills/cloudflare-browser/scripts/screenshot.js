@@ -8,14 +8,16 @@ const WebSocket = require('ws');
 const fs = require('fs');
 const path = require('path');
 
-const CDP_SECRET = process.env.CDP_SECRET;
-if (!CDP_SECRET) {
-  console.error('Error: CDP_SECRET environment variable not set');
+const WORKER_URL = process.env.WORKER_URL;
+if (!WORKER_URL) {
+  console.error('Error: WORKER_URL environment variable not set');
   process.exit(1);
 }
-
-const WORKER_URL = process.env.WORKER_URL.replace(/^https?:\/\//, '');
-const WS_URL = `wss://${WORKER_URL}/cdp?secret=${encodeURIComponent(CDP_SECRET)}`;
+const WS_BASE = WORKER_URL.replace(/^https?:\/\//, '');
+const CDP_SECRET = process.env.CDP_SECRET;
+const WS_URL = CDP_SECRET
+  ? `wss://${WS_BASE}/cdp?secret=${encodeURIComponent(CDP_SECRET)}`
+  : `wss://${WS_BASE}/cdp`;
 
 const url = process.argv[2];
 const output = process.argv[3] || 'screenshot.png';

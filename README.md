@@ -132,7 +132,9 @@ If you enabled Cloudflare Access on your worker, Access runs **before** the work
    - **Policy name:** e.g. `Bypass API`
    - **Action:** Bypass
    - **Configure:** Add an **Include** rule: **Path** → equals `/v1/chat/completions` or starts with `/v1/`.
-5. Save. Requests to `https://your-worker.workers.dev/v1/chat/completions` will skip Access and reach the worker; the worker still requires `Authorization: Bearer YOUR_GATEWAY_TOKEN`.
+5. Save. Add a second Bypass rule for path `/cdp` (or path starts with `/cdp`) so the CDP endpoint (used by video.js, screenshot.js) is also reachable with only the `?secret=CDP_SECRET` query param.
+
+Requests to `/v1/chat/completions` will skip Access (gateway token still required). Requests to `/cdp?...` will skip Access (CDP secret still required).
 
 ## Setting Up the Admin UI
 
@@ -330,18 +332,18 @@ This worker includes a Chrome DevTools Protocol (CDP) shim that enables browser 
 
 ### Setup
 
-1. Set a shared secret for authentication:
-
-```bash
-npx wrangler secret put CDP_SECRET
-# Enter a secure random string
-```
-
-2. Set your worker's public URL:
+1. Set your worker's public URL (required so the container and scripts know where to connect):
 
 ```bash
 npx wrangler secret put WORKER_URL
 # Enter: https://your-worker.workers.dev
+```
+
+2. (Optional) Set a shared secret to restrict CDP access. If you don't set `CDP_SECRET`, anyone who can reach the worker can use the CDP endpoint (protect the worker with Cloudflare Access or a Bypass only for trusted paths if needed):
+
+```bash
+npx wrangler secret put CDP_SECRET
+# Enter a secure random string, or omit to allow unauthenticated CDP
 ```
 
 3. Redeploy:
@@ -359,7 +361,9 @@ npm run deploy
 | `GET /cdp/json/new` | Create a new browser target |
 | `WS /cdp/devtools/browser/{id}` | WebSocket connection for CDP commands |
 
-All endpoints require authentication via the `?secret=<CDP_SECRET>` query parameter.
+When `CDP_SECRET` is set, pass it as the `?secret=<CDP_SECRET>` query parameter. When it is not set, no secret is required.
+
+**If you get 403 when using CDP (e.g. video.js or screenshot.js):** Cloudflare Access runs before the worker and blocks unauthenticated requests. Add a **Bypass** policy in Zero Trust for the path `/cdp` (and `/cdp/*`) so the CDP endpoint is reachable with only the `?secret=` parameter. See [Allowing the API path in Zero Trust](#allowing-the-api-path-in-zero-trust) — add a Bypass rule for `/cdp` the same way as for `/v1/*`.
 
 ## Built-in Skills
 
@@ -367,7 +371,7 @@ The container includes pre-installed skills in `/root/clawd/skills/`:
 
 ### cloudflare-browser
 
-Browser automation via the CDP shim. Requires `CDP_SECRET` and `WORKER_URL` to be set (see [Browser Automation](#optional-browser-automation-cdp) above).
+Browser automation via the CDP shim. Requires `WORKER_URL`; `CDP_SECRET` is optional (see [Browser Automation](#optional-browser-automation-cdp) above).
 
 **Scripts:**
 - `screenshot.js` - Capture a screenshot of a URL

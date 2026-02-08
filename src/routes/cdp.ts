@@ -8,7 +8,8 @@ import puppeteer, { type Browser, type Page } from '@cloudflare/puppeteer';
  * Implements a subset of the CDP protocol over WebSocket, translating commands
  * to Cloudflare Browser Rendering binding calls (Puppeteer interface).
  *
- * Authentication: Pass secret as query param `?secret=<secret>` on WebSocket connect.
+ * Authentication: Optional. If CDP_SECRET is set, pass it as query param `?secret=<CDP_SECRET>`.
+ * If CDP_SECRET is not set, anyone can connect (useful for dev or when Access protects the worker).
  * This route is intentionally NOT protected by Cloudflare Access.
  *
  * Supported CDP domains:
@@ -71,7 +72,7 @@ cdp.get('/', async (c) => {
   if (upgradeHeader?.toLowerCase() !== 'websocket') {
     return c.json({
       error: 'WebSocket upgrade required',
-      hint: 'Connect via WebSocket: ws://host/cdp?secret=<CDP_SECRET>',
+      hint: 'Connect via WebSocket: ws://host/cdp (optional ?secret= if CDP_SECRET is set)',
       supported_methods: [
         // Browser
         'Browser.getVersion',
@@ -152,22 +153,11 @@ cdp.get('/', async (c) => {
     });
   }
 
-  // Verify secret from query param
   const url = new URL(c.req.url);
   const providedSecret = url.searchParams.get('secret');
   const expectedSecret = c.env.CDP_SECRET;
 
-  if (!expectedSecret) {
-    return c.json(
-      {
-        error: 'CDP endpoint not configured',
-        hint: 'Set CDP_SECRET via: wrangler secret put CDP_SECRET',
-      },
-      503,
-    );
-  }
-
-  if (!providedSecret || !timingSafeEqual(providedSecret, expectedSecret)) {
+  if (expectedSecret && (!providedSecret || !timingSafeEqual(providedSecret, expectedSecret))) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
@@ -204,25 +194,14 @@ cdp.get('/', async (c) => {
  * GET /json/version - CDP discovery endpoint
  *
  * Returns browser version info and WebSocket URL for Moltbot/Playwright compatibility.
- * Authentication: Pass secret as query param `?secret=<CDP_SECRET>`
+ * Authentication: Optional. If CDP_SECRET is set, pass `?secret=<CDP_SECRET>`.
  */
 cdp.get('/json/version', async (c) => {
-  // Verify secret from query param
   const url = new URL(c.req.url);
   const providedSecret = url.searchParams.get('secret');
   const expectedSecret = c.env.CDP_SECRET;
 
-  if (!expectedSecret) {
-    return c.json(
-      {
-        error: 'CDP endpoint not configured',
-        hint: 'Set CDP_SECRET via: wrangler secret put CDP_SECRET',
-      },
-      503,
-    );
-  }
-
-  if (!providedSecret || !timingSafeEqual(providedSecret, expectedSecret)) {
+  if (expectedSecret && (!providedSecret || !timingSafeEqual(providedSecret, expectedSecret))) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
@@ -236,9 +215,10 @@ cdp.get('/json/version', async (c) => {
     );
   }
 
-  // Build the WebSocket URL - preserve the secret in the WS URL
   const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${wsProtocol}//${url.host}/cdp?secret=${encodeURIComponent(providedSecret)}`;
+  const wsUrl = expectedSecret && providedSecret
+    ? `${wsProtocol}//${url.host}/cdp?secret=${encodeURIComponent(providedSecret)}`
+    : `${wsProtocol}//${url.host}/cdp`;
 
   return c.json({
     Browser: 'Cloudflare-Browser-Rendering/1.0',
@@ -256,25 +236,14 @@ cdp.get('/json/version', async (c) => {
  * Returns a list of available browser targets for Moltbot/Playwright compatibility.
  * Note: Since we create targets on-demand per WebSocket connection, this returns
  * a placeholder target that will be created when connecting.
- * Authentication: Pass secret as query param `?secret=<CDP_SECRET>`
+ * Authentication: Optional. If CDP_SECRET is set, pass `?secret=<CDP_SECRET>`.
  */
 cdp.get('/json/list', async (c) => {
-  // Verify secret from query param
   const url = new URL(c.req.url);
   const providedSecret = url.searchParams.get('secret');
   const expectedSecret = c.env.CDP_SECRET;
 
-  if (!expectedSecret) {
-    return c.json(
-      {
-        error: 'CDP endpoint not configured',
-        hint: 'Set CDP_SECRET via: wrangler secret put CDP_SECRET',
-      },
-      503,
-    );
-  }
-
-  if (!providedSecret || !timingSafeEqual(providedSecret, expectedSecret)) {
+  if (expectedSecret && (!providedSecret || !timingSafeEqual(providedSecret, expectedSecret))) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
@@ -288,9 +257,10 @@ cdp.get('/json/list', async (c) => {
     );
   }
 
-  // Build the WebSocket URL
   const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${wsProtocol}//${url.host}/cdp?secret=${encodeURIComponent(providedSecret)}`;
+  const wsUrl = expectedSecret && providedSecret
+    ? `${wsProtocol}//${url.host}/cdp?secret=${encodeURIComponent(providedSecret)}`
+    : `${wsProtocol}//${url.host}/cdp`;
 
   // Return a placeholder target - actual target is created on WS connect
   return c.json([
@@ -310,25 +280,11 @@ cdp.get('/json/list', async (c) => {
  * GET /json - Alias for /json/list (some clients use this)
  */
 cdp.get('/json', async (c) => {
-  // Redirect internally to /json/list handler
   const url = new URL(c.req.url);
-  url.pathname = url.pathname.replace(/\/json\/?$/, '/json/list');
-
-  // Verify secret from query param
   const providedSecret = url.searchParams.get('secret');
   const expectedSecret = c.env.CDP_SECRET;
 
-  if (!expectedSecret) {
-    return c.json(
-      {
-        error: 'CDP endpoint not configured',
-        hint: 'Set CDP_SECRET via: wrangler secret put CDP_SECRET',
-      },
-      503,
-    );
-  }
-
-  if (!providedSecret || !timingSafeEqual(providedSecret, expectedSecret)) {
+  if (expectedSecret && (!providedSecret || !timingSafeEqual(providedSecret, expectedSecret))) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
@@ -342,9 +298,10 @@ cdp.get('/json', async (c) => {
     );
   }
 
-  // Build the WebSocket URL
   const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${wsProtocol}//${url.host}/cdp?secret=${encodeURIComponent(providedSecret)}`;
+  const wsUrl = expectedSecret && providedSecret
+    ? `${wsProtocol}//${url.host}/cdp?secret=${encodeURIComponent(providedSecret)}`
+    : `${wsProtocol}//${url.host}/cdp`;
 
   return c.json([
     {
